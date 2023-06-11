@@ -3,19 +3,20 @@ package org.example;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.*;
 
 public class Main {
     public static void main(String[] args) {
         String[] texts = new String[25];
-        List<Thread> threads = new ArrayList<>();
+        final ExecutorService executorService = Executors.newFixedThreadPool(texts.length);
+        List<Future<String>> threads = new ArrayList<>();
         for (int i = 0; i < texts.length; i++) {
             texts[i] = generateText("aab", 30_000);
         }
 
-        int threadNumber = 0;
         long startTs = System.currentTimeMillis(); // start time
         for (String text : texts) {
-            threads.add(new Thread(() -> {
+            Callable<String> callable = (() -> {
                 int maxSize = 0;
                 for (int i = 0; i < text.length(); i++) {
                     for (int j = 0; j < text.length(); j++) {
@@ -34,21 +35,29 @@ public class Main {
                         }
                     }
                 }
-                System.out.println(text.substring(0, 100) + " -> " + maxSize);
-            }));
-            threads.get(threadNumber).start();
-            threadNumber++;
+                return text.substring(0, 100) + " -> " + maxSize;
+            });
+            Future<String> task = executorService.submit(callable);
+            threads.add(task);
         }
-        for (Thread thread :threads) {
+        int max = 0;
+        for (Future<String> future : threads) {
             try {
-                thread.join();
-            } catch (InterruptedException e) {
+                String result = future.get();
+                System.out.println(result);
+                int maxSize = Integer.parseInt(result.split(" -> ")[1]);
+                if (maxSize > max) {
+                    max = maxSize;
+                }
+            } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
         }
+        System.out.println("max = " + max);
         long endTs = System.currentTimeMillis(); // end time
 
         System.out.println("Time: " + (endTs - startTs) + "ms");
+        executorService.shutdown();
     }
 
     public static String generateText(String letters, int length) {
